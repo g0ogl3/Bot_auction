@@ -71,6 +71,33 @@ class DatabaseManager:
             conn.execute('''UPDATE prizes SET used = 1 WHERE prize_id = ?''', (prize_id,))
             conn.commit()
 
+
+    def get_user_score(self, user_id):
+        with self.conn:
+            result = self.conn.execute('SELECT score FROM users WHERE id = ?', (user_id,)).fetchone()
+            return result[0] if result else 0
+
+    def update_user_score(self, user_id, points):
+        with self.conn:
+            self.conn.execute('''
+                UPDATE users SET score = score + ?
+                WHERE id = ?
+            ''', (points, user_id))
+
+    
+    def get_missed_images(self, user_id):
+        with self.conn:
+            return self.conn.execute('''
+                SELECT p.image_path
+                FROM prizes p
+                WHERE p.used = 1
+                AND NOT EXISTS (
+                    SELECT 1 FROM user_prizes up
+                    WHERE up.prize_id = p.id
+                    AND up.user_id = ?
+                )
+            ''', (user_id,)).fetchall()
+
     def get_users(self):
         conn = sqlite3.connect(self.database)
         with conn:
@@ -136,11 +163,11 @@ def create_collage(image_paths):
         images.append(image)
 
     num_images = len(images)
-    num_cols = floor(sqrt(num_images))
-    num_rows = ceil(num_images/num_cols) 
-    
+    num_cols = floor(sqrt(num_images)) # Поиск количество картинок по горизонтали
+    num_rows = ceil(num_images/num_cols)  # Поиск количество картинок по вертикали
+    # Создание пустого коллажа
     collage = np.zeros((num_rows * images[0].shape[0], num_cols * images[0].shape[1], 3), dtype=np.uint8)
-    
+    # Размещение изображений на коллаже
     for i, image in enumerate(images):
         row = i // num_cols
         col = i % num_cols
